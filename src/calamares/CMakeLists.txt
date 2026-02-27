@@ -29,6 +29,9 @@ include_directories(
 # The calamares-i18n.cxx file -- full path in CALAMARES_TRANSLATIONS_SOURCE --
 # is created as a target in the lang/ directory. This is compiled to a
 # library (it's just the result of a QRC compile).
+if(WITH_QT6)
+    find_package(Qt6 REQUIRED COMPONENTS WebEngineCore)
+endif()
 add_executable(calamares_bin ${calamaresSources} calamares.qrc)
 target_include_directories(calamares_bin PRIVATE ${CMAKE_SOURCE_DIR})
 set_target_properties(calamares_bin PROPERTIES ENABLE_EXPORTS TRUE RUNTIME_OUTPUT_NAME calamares)
@@ -40,6 +43,9 @@ target_link_libraries(
     calamares_bin
     PRIVATE calamares calamaresui calamares-i18n kdsingleapplication ${qtname}::Core ${qtname}::Widgets
 )
+if(WITH_QT6)
+    target_link_libraries(calamares_bin PRIVATE Qt6::WebEngineCore)
+endif()
 target_link_libraries(calamares_bin PRIVATE ${kfname}::CoreAddons)
 if(BUILD_CRASH_REPORTING)
     target_link_libraries(calamares_bin PRIVATE ${kfname}::Crash)

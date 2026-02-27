@@ -14,11 +14,6 @@ _cleaner_msg() {            # use this function to provide all user messages (in
     echo "==> $type: $msg"
 }
 
-arch_chroot() {   # This function is no more needed?
-    # Use chroot not arch-chroot because of the way calamares mounts partitions
-    chroot /tmp/$chroot_path /bin/bash -c "${1}"
-}
-
 _CopyFileToTarget() {
     # Copy a file to target
 
@@ -35,6 +30,123 @@ _CopyFileToTarget() {
     fi
     _cleaner_msg info "copying $(basename "$file") to target"
     cp "$file" "$targetdir"
+}
+
+_bool_normalize() {
+    local value="${1:-}"
+    value="${value,,}"
+    case "$value" in
+        1|y|yes|true|on) echo "true" ;;
+        *) echo "false" ;;
+    esac
+}
+
+_sanitize_github_username() {
+    local username="$1"
+    if [[ "$username" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,38})$ ]]; then
+        echo "$username"
+    fi
+}
+
+_password_is_valid() {
+    local password="$1"
+    [ "${#password}" -ge 8 ]
+}
+
+_prompt_installer_remote_options() {
+    local config_file=/tmp/eos-installer-ssh.conf
+    local enable_sshd=false
+    local import_github_keys=false
+    local github_username=""
+    local enable_rdp=false
+    local rdp_password=""
+    local rdp_password_confirm=""
+    local rdp_password_b64=""
+    local response=""
+
+    if [ -r "$config_file" ] ; then
+        return
+    fi
+
+    if command -v kdialog >/dev/null 2>&1 && [ -n "${DISPLAY:-}" ] ; then
+        if kdialog --title "EndeavourOS Installer" \
+            --yes-label "Enable" --no-label "Skip" \
+            --yesno "Enable OpenSSH server on the installed system?" ; then
+            enable_sshd=true
+        fi
+
+        if kdialog --title "EndeavourOS Installer" \
+            --yes-label "Import" --no-label "Skip" \
+            --yesno "Import GitHub public SSH keys for the installed user?" ; then
+            import_github_keys=true
+            github_username="$(kdialog --title "EndeavourOS Installer" \
+                --inputbox "GitHub username for SSH key import:" 2>/dev/null || true)"
+        fi
+
+        if kdialog --title "EndeavourOS Installer" \
+            --yes-label "Configure" --no-label "Skip" \
+            --yesno "Configure KRDP and set a dedicated RDP password?" ; then
+            enable_rdp=true
+            rdp_password="$(kdialog --title "EndeavourOS Installer" \
+                --password "Enter RDP password (minimum 8 characters):" 2>/dev/null || true)"
+            rdp_password_confirm="$(kdialog --title "EndeavourOS Installer" \
+                --password "Confirm RDP password:" 2>/dev/null || true)"
+        fi
+    elif [ -t 0 ] ; then
+        read -r -p "Enable OpenSSH server on the installed system? [y/N] " response
+        if [[ "$response" =~ ^[Yy]$ ]] ; then
+            enable_sshd=true
+        fi
+
+        response=""
+        read -r -p "Import GitHub public SSH keys for the installed user? [y/N] " response
+        if [[ "$response" =~ ^[Yy]$ ]] ; then
+            import_github_keys=true
+            read -r -p "GitHub username for SSH key import: " github_username
+        fi
+
+        response=""
+        read -r -p "Configure KRDP and set a dedicated RDP password? [y/N] " response
+        if [[ "$response" =~ ^[Yy]$ ]] ; then
+            enable_rdp=true
+            read -r -s -p "Enter RDP password (minimum 8 characters): " rdp_password
+            echo
+            read -r -s -p "Confirm RDP password: " rdp_password_confirm
+            echo
+        fi
+    else
+        _cleaner_msg warning "No interactive prompt available. Using remote access defaults."
+    fi
+
+    github_username="${github_username//[[:space:]]/}"
+    github_username="$(_sanitize_github_username "$github_username")"
+    if [ "$import_github_keys" = "true" ] && [ -z "$github_username" ] ; then
+        _cleaner_msg warning "GitHub SSH key import selected but username is empty or invalid. Skipping key import."
+        import_github_keys=false
+    fi
+
+    if [ "$enable_rdp" = "true" ] ; then
+        if [ "$rdp_password" != "$rdp_password_confirm" ] ; then
+            _cleaner_msg warning "RDP password confirmation did not match. Skipping KRDP setup."
+            enable_rdp=false
+            rdp_password=""
+        elif ! _password_is_valid "$rdp_password" ; then
+            _cleaner_msg warning "RDP password must be at least 8 characters. Skipping KRDP setup."
+            enable_rdp=false
+            rdp_password=""
+        else
+            rdp_password_b64="$(printf '%s' "$rdp_password" | base64 | tr -d '\n')"
+        fi
+    fi
+
+    cat > "$config_file" << EOF
+ENABLE_SSHD=$(_bool_normalize "$enable_sshd")
+IMPORT_GITHUB_KEYS=$(_bool_normalize "$import_github_keys")
+GITHUB_USERNAME=$github_username
+ENABLE_RDP=$(_bool_normalize "$enable_rdp")
+RDP_PASSWORD_B64=$rdp_password_b64
+EOF
+    chmod 0600 "$config_file"
 }
 
 _manage_broadcom_wifi_driver() {
@@ -69,23 +181,12 @@ _copy_files(){
         fi
     fi
 
-    # Communicate to chrooted system if
-    # - nvidia card is detected
-    # - livesession is running nvidia driver
-	if grep -qw "nvidia=1" /proc/cmdline; then
-    	local nvidia_file="$target/tmp/nvidia-info.bash"
-    	local driver
-
-    	driver="$(/usr/bin/nvidia-inst --recommended-driver)"
-
-   	 	if [ "$driver" = "nvidia-open" ]; then
-        	echo "nvidia_driver=nvidia-open" >> "$nvidia_file"
-    	fi
-	fi
-
-
     # copy user_commands.bash to target
     _CopyFileToTarget /home/liveuser/user_commands.bash $target/tmp
+
+    # Ask for remote access setup (SSH + GitHub keys + KRDP password) and pass choices into target.
+    _prompt_installer_remote_options
+    _CopyFileToTarget /tmp/eos-installer-ssh.conf $target/tmp
 
     # copy hotfix-end.bash to target
     _CopyFileToTarget /usr/share/endeavouros/hotfix/hotfixes/hotfix-end.bash $target/tmp
@@ -95,16 +196,21 @@ _copy_files(){
     mkdir -p $target/usr/share/X11/xorg.conf.d
     cp /usr/share/X11/xorg.conf.d/30-touchpad.conf  $target/usr/share/X11/xorg.conf.d/
 
+    # copy locally built KRDP package for target-side override after package install
+    if /usr/bin/ls /usr/share/packages/krdp-*.pkg.tar.zst >/dev/null 2>&1 ; then
+        _cleaner_msg info "copying local patched KRDP package(s) to target"
+        mkdir -p "$target/usr/share/packages"
+        cp /usr/share/packages/krdp-*.pkg.tar.zst "$target/usr/share/packages/"
+    else
+        _cleaner_msg warning "no local KRDP package found under /usr/share/packages"
+    fi
+
     # copy extra drivers from /opt/extra-drivers to target's /opt/extra-drivers
     if [ -n "$(/usr/bin/ls /opt/extra-drivers/*.zst 2>/dev/null)" ] ; then
         _cleaner_msg info "copying extra drivers to target"
         mkdir -p $target/opt/extra-drivers || _cleaner_msg warning "creating folder /opt/extra-drivers on target failed."
         cp /opt/extra-drivers/*.zst $target/opt/extra-drivers/ || _cleaner_msg warning "copying drivers to /opt/extra-drivers on target failed."
     fi
-    #if [ -n "$(lsmod | grep r8168)" ] ; then
-    #    _cleaner_msg info "detected usage of r8168 driver"
-    #    touch $target/tmp/r8168_in_use
-    #fi
 
     _manage_broadcom_wifi_driver
 
@@ -162,23 +268,7 @@ Main() {
     fi
     # [ -z "$NEW_USER" ] && _cleaner_msg "error" "cleaner_script.sh: new username is unknown!"
 
-    # If the Intel X driver was installed, also install it on the target
-    echo "Checking if Intel X11 driver is needed"
-    if [[ $(pacman -Q xf86-video-intel 2>/dev/null) ]] ; then
-		if [ -z ${INSTALL_TYPE} ] ; then
-			pacman -U --noconfirm --sysroot /tmp/$chroot_path /usr/share/packages/libxvmc*.zst --asdeps
-			pacman -U --noconfirm --sysroot /tmp/$chroot_path /usr/share/packages/xf86-video-intel*.zst
-		else
-			pacman -S --noconfirm --sysroot /tmp/$chroot_path xf86-video-intel
-		fi
-	fi
-
     # Copy any file from live environment to new system
-
-    cp -f /etc/calamares/files/environment /tmp/$chroot_path/etc/environment
-    cp -n /usr/bin/device-info /tmp/$chroot_path/usr/bin/.
-    cp -n /usr/bin/eos-connection-checker /tmp/$chroot_path/usr/bin/.
-
     _copy_files
 
     _cleaner_msg info "cleaner_script.sh done."

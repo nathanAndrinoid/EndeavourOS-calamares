@@ -26,6 +26,9 @@
 #include <QCommandLineParser>
 #include <QDebug>
 #include <QDir>
+#if QT_VERSION >= QT_VERSION_CHECK( 6, 0, 0 )
+#include <QWebEngineUrlScheme>
+#endif
 
 #include <memory>
 
@@ -106,6 +109,13 @@ handle_args( CalamaresApplication& a )
 int
 main( int argc, char* argv[] )
 {
+#if QT_VERSION >= QT_VERSION_CHECK( 6, 0, 0 )
+    // Must register custom URL scheme before any QApplication/QGuiApplication (Qt WebEngine requirement).
+    // Used by the webview module so embedded pages can call Calamares.globalStorage.insert().
+    QWebEngineUrlScheme scheme( QByteArrayLiteral( "calamares" ) );
+    scheme.setFlags( QWebEngineUrlScheme::SecureScheme );
+    QWebEngineUrlScheme::registerScheme( scheme );
+#endif
 #if QT_VERSION < QT_VERSION_CHECK( 6, 0, 0 )
     // Not needed in Qt6
     QApplication::setAttribute( Qt::AA_EnableHighDpiScaling );
