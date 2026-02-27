@@ -55,3 +55,14 @@ CMakeLists.txt.user
 # Kate
 *.kate-swp
 tags
+
+# Zero-size placeholder files (untracked)
+.gitmodules
+data/example-root/etc/sudoers.d/10-installer
+data/example-root/usr/share/zoneinfo/.dummy
+data/example-root/var/lib/dbus/.dummy
+data/example-root/var/lib/initramfs-tools
+src/modules/locale/images/timezone_3.0.png
+src/modules/locale/images/timezone_3.5.png
+src/modules/locale/images/timezone_4.0.png
+src/modules/locale/images/timezone_5.0.png
