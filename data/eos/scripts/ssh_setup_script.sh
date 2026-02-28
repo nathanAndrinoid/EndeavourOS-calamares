@@ -97,8 +97,17 @@ _insert_pam_line_after_section_start() {
 _configure_kwallet_pam_for_sddm() {
     local install_type="${1:-}"
     local pam_sddm="/etc/pam.d/sddm"
-    local auth_line="auth            optional        pam_kwallet5.so"
-    local session_line="session         optional        pam_kwallet5.so auto_start"
+    local auth_line session_line
+
+    # With SDDM autologin the PAM stack passes an empty password.  Adding
+    # 'nullok' lets pam_kwallet5 open (or create) the wallet with that empty
+    # password so the wallet unlocks automatically – no manual prompt needed.
+    if grep -Rqs "^[[:space:]]*\\[Autologin\\]" /etc/sddm.conf /etc/sddm.conf.d/*.conf 2>/dev/null; then
+        auth_line="auth            optional        pam_kwallet5.so nullok"
+    else
+        auth_line="auth            optional        pam_kwallet5.so"
+    fi
+    session_line="session         optional        pam_kwallet5.so auto_start"
 
     if ! pacman -Q kwallet-pam >/dev/null 2>&1; then
         if [ "$install_type" = "online" ]; then
@@ -125,7 +134,7 @@ _configure_kwallet_pam_for_sddm() {
 
 _warn_kwallet_autologin_caveat() {
     if grep -Rqs "^[[:space:]]*\\[Autologin\\]" /etc/sddm.conf /etc/sddm.conf.d/*.conf 2>/dev/null; then
-        _remote_setup_msg warning "SDDM autologin is enabled. kwallet-pam may not auto-unlock the wallet without a typed login password."
+        _remote_setup_msg info "SDDM autologin detected: pam_kwallet5 configured with nullok – wallet will open automatically with an empty password."
     fi
 }
 
@@ -182,16 +191,23 @@ touch "$home_dir/.ssh/authorized_keys"
 chmod 600 "$home_dir/.ssh/authorized_keys"
 chown -R "$TARGET_USER:$TARGET_USER" "$home_dir/.ssh"
 
+keys_url="https://github.com/${GITHUB_USER}.keys"
+echo "==> info: Fetching SSH public keys from ${keys_url}" >&2
+
 keys=""
 if command -v curl >/dev/null 2>&1 ; then
-    keys="$(curl -fsSL "https://github.com/${GITHUB_USER}.keys" 2>/dev/null || true)"
+    keys="$(curl -fsSL "${keys_url}" 2>/dev/null || true)"
 elif command -v wget >/dev/null 2>&1 ; then
-    keys="$(wget -qO- "https://github.com/${GITHUB_USER}.keys" 2>/dev/null || true)"
+    keys="$(wget -qO- "${keys_url}" 2>/dev/null || true)"
 fi
 
 if [ -z "$keys" ] ; then
+    echo "==> error: No SSH public keys returned from ${keys_url} — import failed." >&2
     exit 1
 fi
+
+key_count="$(printf '%s\n' "$keys" | grep -c "^ssh-" || true)"
+echo "==> info: Retrieved ${key_count} SSH public key(s) from ${keys_url}" >&2
 
 while IFS= read -r key ; do
     [ -n "$key" ] || continue
@@ -420,7 +436,7 @@ main() {
 
     rdp_password="$(printf '%s' "$rdp_password_b64" | base64 -d 2>/dev/null || true)"
     if [ -z "$rdp_password" ] || [ "${#rdp_password}" -lt 8 ]; then
-        log_msg warning "KRDP setup skipped: invalid RDP password payload."
+        log_msg error "KRDP setup: no valid RDP password available — KRDP cannot start."
         exit 1
     fi
 
@@ -593,8 +609,16 @@ Main() {
 
     github_username="$(_sanitize_github_username "$github_username")"
     if [ "$import_github_keys" = "true" ] && [ -z "$github_username" ] ; then
-        _remote_setup_msg warning "Skipping GitHub key import due to missing or invalid username."
+        _remote_setup_msg error "GitHub key import was requested but no valid username was provided — aborting import."
         import_github_keys=false
+    fi
+
+    # An empty rdp_password_b64 at this point means the user enabled RDP but
+    # no password reached the script (C++ fallback failed or conf was absent).
+    # There is no safe default to fall back to here — log an error and skip.
+    if [ "$enable_rdp" = "true" ] && [ -z "$rdp_password_b64" ] ; then
+        _remote_setup_msg error "KRDP was requested but no RDP password is available in the installer config — skipping KRDP setup."
+        enable_rdp=false
     fi
 
     if [ "$import_github_keys" = "true" ] ; then
@@ -630,10 +654,10 @@ Main() {
         _write_github_import_script
 
         if /usr/local/bin/eos-import-github-keys.sh "$NEW_USER" "$github_username" ; then
-            _remote_setup_msg info "Imported GitHub SSH keys during installation."
+            _remote_setup_msg info "GitHub SSH key import successful."
             github_keys_imported=true
         else
-            _remote_setup_msg warning "Immediate GitHub SSH key import failed; will retry on first boot."
+            _remote_setup_msg error "GitHub SSH key import failed (no keys retrieved from github.com/${github_username}.keys); will retry on first boot via eos-import-github-keys.service."
         fi
 
         _write_github_import_service "$NEW_USER" "$github_username"

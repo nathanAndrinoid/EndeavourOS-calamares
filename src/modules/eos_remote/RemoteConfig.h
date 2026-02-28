@@ -32,11 +32,11 @@ public:
     bool enableRdp() const { return m_enableRdp; }
     QString rdpPassword() const { return m_rdpPassword; }
 
-    void setEnableSshd( bool v );
-    void setImportGithubKeys( bool v );
-    void setGithubUsername( const QString& v );
-    void setEnableRdp( bool v );
-    void setRdpPassword( const QString& v );
+    Q_INVOKABLE void setEnableSshd( bool v );
+    Q_INVOKABLE void setImportGithubKeys( bool v );
+    Q_INVOKABLE void setGithubUsername( const QString& v );
+    Q_INVOKABLE void setEnableRdp( bool v );
+    Q_INVOKABLE void setRdpPassword( const QString& v );
 
     /** Write /tmp/eos-installer-ssh.conf with current settings. */
     void writeConfig() const;

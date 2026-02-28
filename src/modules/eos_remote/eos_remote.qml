@@ -113,6 +113,23 @@ Page {
                         ? positiveFieldOutlineColor : unfilledFieldOutlineColor
                 }
 
+                Rectangle {
+                    width: 550
+                    height: _githubErrLabel.implicitHeight + 16
+                    visible: _githubField.text.length === 0
+                    color: "#5C2323"
+                    border.color: "#BF616A"
+                    border.width: 1
+                    radius: 4
+                    Label {
+                        id: _githubErrLabel
+                        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 8; rightMargin: 8 }
+                        text: qsTr("A GitHub username is required to import SSH keys.")
+                        color: "#FFAAAA"
+                        wrapMode: Text.WordWrap
+                    }
+                }
+
                 Label {
                     width: 550
                     text: qsTr("Only alphanumeric characters and hyphens are allowed (GitHub username rules).")
@@ -194,13 +211,39 @@ Page {
                     }
                 }
 
-                Kirigami.InlineMessage {
+                Rectangle {
                     width: 550
+                    height: _rdpMismatchLabel.implicitHeight + 16
                     visible: _rdpPassConfirm.text.length > 0
                         && _rdpPassField.text !== _rdpPassConfirm.text
-                    showCloseButton: false
-                    type: Kirigami.MessageType.Error
-                    text: qsTr("Passwords do not match.")
+                    color: "#5C2323"
+                    border.color: "#BF616A"
+                    border.width: 1
+                    radius: 4
+                    Label {
+                        id: _rdpMismatchLabel
+                        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 8; rightMargin: 8 }
+                        text: qsTr("Passwords do not match.")
+                        color: "#FFAAAA"
+                        wrapMode: Text.WordWrap
+                    }
+                }
+
+                Rectangle {
+                    width: 550
+                    height: _rdpNoPassLabel.implicitHeight + 16
+                    visible: _rdpPassField.text.length === 0
+                    color: "#1A3A5C"
+                    border.color: "#5C87BF"
+                    border.width: 1
+                    radius: 4
+                    Label {
+                        id: _rdpNoPassLabel
+                        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 8; rightMargin: 8 }
+                        text: qsTr("No RDP password entered — your user login password will be used as the RDP password.")
+                        color: "#AACCFF"
+                        wrapMode: Text.WordWrap
+                    }
                 }
 
                 Label {

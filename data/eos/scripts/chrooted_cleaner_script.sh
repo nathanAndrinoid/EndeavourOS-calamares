@@ -88,8 +88,10 @@ _install_needed_packages() {
 _virt_remove() {
     local pkg
     for pkg in "$@" ; do
-        _pkg_msg remove "$pkg"
-        pacman -Rns --noconfirm "$pkg"
+        if _is_pkg_installed "$pkg" ; then
+            _pkg_msg remove "$pkg"
+            pacman -Rns --noconfirm "$pkg"
+        fi
     done
 }
 
@@ -155,6 +157,9 @@ _virtual_machines() {
         *)
             _c_c_s_msg info "VM not detected."
             _virt_remove $pkgs_vbox $pkgs_qemu $pkgs_vmware $pkgs_common
+            if _is_pkg_installed power-profiles-daemon ; then
+                systemctl enable power-profiles-daemon.service >/dev/null 2>&1 || true
+            fi
             ;;
     esac
 }
@@ -251,6 +256,21 @@ _is_offline_mode() {
 _is_online_mode() { ! _is_offline_mode ; }
 
 
+_restore_installer_services() {
+    # _clean_archiso() wipes /etc/systemd/system/multi-user.target.wants/* to
+    # remove live-environment service enables from the squashfs.  Any service
+    # that ssh_setup_script.sh enabled before this cleanup must be re-enabled
+    # here so the choice survives into the installed system.
+    # services-systemd (which runs after this script) handles standard services;
+    # sshd is conditional on the installer SSH checkbox and must be handled here.
+    local sshd_marker="/etc/ssh/sshd_config.d/99-eos-installer-auth.conf"
+    if [ -f "$sshd_marker" ] && _is_pkg_installed openssh ; then
+        _c_c_s_msg info "Re-enabling sshd.service (SSH was requested during installation)."
+        systemctl enable sshd.service >/dev/null 2>&1 || \
+            _c_c_s_msg warning "Failed to re-enable sshd.service."
+    fi
+}
+
 _check_install_mode(){
 
     if _is_online_mode ; then
@@ -265,6 +285,7 @@ _check_install_mode(){
                 chown $NEW_USER:$NEW_USER /home/$NEW_USER/.bashrc
                 _sed_stuff
                 _clean_offline_packages
+                _restore_installer_services
             ;;
 
         ONLINE_MODE)
