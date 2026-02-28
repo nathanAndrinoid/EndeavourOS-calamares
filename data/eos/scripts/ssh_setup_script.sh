@@ -473,6 +473,15 @@ __DROPIN_EOF__
     configure_firewall_for_rdp
     configure_sddm_autologin "$target_user"
 
+    install -dm 0755 "$target_home/.config"
+    cat > "$target_home/.config/krdprc" <<__KRDPRC_EOF__
+[General]
+StartOnLogin=true
+__KRDPRC_EOF__
+    chown "$target_user:$target_user" "$target_home/.config/krdprc"
+    chmod 0644 "$target_home/.config/krdprc"
+    log_msg info "Written krdprc with StartOnLogin=true for user '$target_user'."
+
     if command -v loginctl >/dev/null 2>&1; then
         loginctl enable-linger "$target_user" >/dev/null 2>&1 || true
     fi
@@ -514,6 +523,14 @@ WantedBy=multi-user.target
 EOS_KRDP_SERVICE
 }
 
+_enable_systemd_resolved() {
+    if systemctl enable systemd-resolved.service >/dev/null 2>&1; then
+        _remote_setup_msg info "Enabled systemd-resolved.service for DNS stub resolver."
+    else
+        _remote_setup_msg warning "Failed to enable systemd-resolved.service."
+    fi
+}
+
 Main() {
     local opt
     local INSTALL_TYPE=""
@@ -547,6 +564,7 @@ Main() {
 
     _configure_kwallet_pam_for_sddm "$INSTALL_TYPE"
     _warn_kwallet_autologin_caveat
+    _enable_systemd_resolved
 
     if [ ! -r "$config_file" ] ; then
         _remote_setup_msg info "No installer remote setup config found. Skipping."
