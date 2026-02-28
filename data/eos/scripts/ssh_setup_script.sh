@@ -478,7 +478,7 @@ Environment=LIBGL_ALWAYS_SOFTWARE=1
 Environment=KPIPEWIRE_FORCE_ENCODER=libx264
 Environment=KRDP_ENABLE_NLA=0
 Environment=KRDP_TOUCHPAD_SCROLL_INVERT=1
-Environment=KRDP_TOUCHPAD_SCROLL_SCALE=0.35
+Environment=KRDP_TOUCHPAD_SCROLL_SCALE=3.5
 Environment=KRDP_MOUSE_SCROLL_SCALE=3.0
 ExecStart=
 ExecStart="$bin_esc" --monitor -1 --quality 75 --certificate "$cert_esc" --certificate-key "$key_esc" -u "$user_esc" -p "$pass_esc"
