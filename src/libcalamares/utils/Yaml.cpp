@@ -64,6 +64,17 @@ scalarToVariant( const ::YAML::Node& scalarNode )
 
     std::string stdScalar = scalarNode.as< std::string >();
     QString scalarString = QString::fromStdString( stdScalar );
+
+    // Quoted scalars ("foo", 'foo') carry tag "!" in yaml-cpp; explicitly
+    // typed scalars (!!str foo) carry the full URI tag.  In both cases the
+    // YAML author has opted out of type inference, so return a plain string
+    // without running the bool/int/float regexes below.
+    const std::string tag = scalarNode.Tag();
+    if ( tag == "!" || tag == "tag:yaml.org,2002:str" )
+    {
+        return QVariant( scalarString );
+    }
+
     if ( yamlScalarTrueValues.match( scalarString ).hasMatch() )
     {
         return QVariant( true );

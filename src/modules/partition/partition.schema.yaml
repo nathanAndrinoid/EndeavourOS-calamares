@@ -9,6 +9,7 @@ type: object
 properties:
     efiSystemPartition: { type: string }  # Deprecated alias of efi.mountPoint
     efiSystemPartitionSize: { type: string } # Deprecated alias of efi.recommendedSize
+    efiSystemPartitionMinSize: { type: string } # Deprecated alias of efi.minimumSize
     efiSystemPartitionName: { type: string } # Deprecated alias of efi.label
 
     efi:

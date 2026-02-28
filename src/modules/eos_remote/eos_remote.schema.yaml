@@ -1,0 +1,10 @@
+---
+$schema: https://json-schema.org/draft-07/schema
+$id: eos_remote
+additionalProperties: false
+type: object
+properties:
+    qmlSearch:
+        type: string
+    qmlFilename:
+        type: string

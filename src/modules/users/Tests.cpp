@@ -531,7 +531,10 @@ UserTests::testUserUmask()
     static constexpr int no_permissions = -1;
     const QString old_shell = QStringLiteral( "/bin/ls" );
     const QString new_shell = QStringLiteral( "/usr/bin/new" );
-    const QStringList forbidden { QStringLiteral( "me" ), QStringLiteral( "myself" ), QStringLiteral( "moi" ) };
+    // After setConfigurationMap, tidy() lowercases, sorts, and deduplicates the
+    // user-configured names merged with alwaysForbiddenLoginNames() {"root","nobody"}.
+    const QStringList forbidden { QStringLiteral( "me" ), QStringLiteral( "moi" ), QStringLiteral( "myself" ),
+                                  QStringLiteral( "nobody" ), QStringLiteral( "root" ) };
     Config c;
     c.setUserShell( old_shell );
     QCOMPARE( c.homePermissions(), no_permissions );

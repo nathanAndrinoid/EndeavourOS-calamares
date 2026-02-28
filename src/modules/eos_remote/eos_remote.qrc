@@ -1,0 +1,5 @@
+<RCC>
+    <qresource>
+        <file alias="eos_remote.qml">eos_remote.qml</file>
+    </qresource>
+</RCC>

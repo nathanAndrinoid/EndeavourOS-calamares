@@ -6,6 +6,7 @@ type: object
 properties:
     name: { type: string }
     scriptPath: { type: string }
+    gsName: { type: string }
     runInTarget: { type: boolean, default: false }
     includeRoot: { type: boolean, default: false }
     includeUser: { type: boolean, default: false }

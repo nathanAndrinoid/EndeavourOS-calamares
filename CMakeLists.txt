@@ -738,6 +738,35 @@ endif()
 
 
 
+### EOS SETTINGS VALIDATION TESTS
+#
+if(BUILD_TESTING AND BUILD_SCHEMA_TESTING AND Python_Interpreter_FOUND)
+    foreach(_settings settings_offline settings_online)
+        add_test(
+            NAME validate-eos-${_settings}
+            COMMAND
+                ${Python_EXECUTABLE} "${CMAKE_SOURCE_DIR}/ci/check_settings.py"
+                "${CMAKE_SOURCE_DIR}/data/eos/${_settings}.conf"
+                "${CMAKE_SOURCE_DIR}/src/modules"
+                "${CMAKE_SOURCE_DIR}/data/eos/modules"
+                "--skip-modules" "${SKIP_MODULES}"
+        )
+    endforeach()
+endif()
+
+if(BUILD_TESTING AND Python_Interpreter_FOUND)
+    # Unit test for eos_pacman: _copy_gnupg_dir() must skip POSIX socket files
+    # (S.gpg-agent, S.dirmngr, …) that shutil.copytree cannot copy and that
+    # gpg-agent leaves open in /etc/pacman.d/gnupg/ during installation.
+    add_test(
+        NAME eos-pacman-gnupg-copy
+        COMMAND
+            ${Python_EXECUTABLE}
+            "${CMAKE_SOURCE_DIR}/src/modules/eos_pacman/test_gnupg_copy.py"
+            "${CMAKE_SOURCE_DIR}/src/modules/eos_pacman"
+    )
+endif()
+
 ### CMAKE SUMMARY REPORT
 #
 get_directory_property(SKIPPED_MODULES DIRECTORY src/modules DEFINITION LIST_SKIPPED_MODULES)
